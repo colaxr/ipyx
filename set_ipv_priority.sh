@@ -26,6 +26,11 @@ get_network_info() {
 
   # 自动检测 IPv6 网关
   IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )(\S+)')
+
+  if [ -z "$INTERFACE" ] || [ -z "$IPv4_GATEWAY" ] || [ -z "$IPv6_GATEWAY" ]; then
+    echo "错误：未能自动检测到网卡或网关，请检查网络配置。"
+    exit 1
+  fi
 }
 
 # 设置 IPv4 优先
@@ -90,35 +95,29 @@ check_priority() {
 
 # 处理用户选择
 handle_choice() {
-  # 清除输入中的空格或其他不可见字符
-  choice=$(echo "$1" | xargs)
+  choice=$(echo "$1" | xargs)  # 清除输入中的空格或其他不可见字符
   
-  # 检查输入的选择是否为有效的数字
-  if [[ "$choice" =~ ^[1-5]$ ]]; then
-    case $choice in
-      1)
-        set_ipv4_priority
-        ;;
-      2)
-        set_ipv6_priority
-        ;;
-      3)
-        restore_default
-        ;;
-      4)
-        check_priority
-        ;;
-      5)
-        echo "退出程序"
-        exit 0
-        ;;
-      *)
-        echo "无效选择，请重新选择"
-        ;;
-    esac
-  else
-    echo "无效输入，请输入 1 至 5 的选项"
-  fi
+  case $choice in
+    1)
+      set_ipv4_priority
+      ;;
+    2)
+      set_ipv6_priority
+      ;;
+    3)
+      restore_default
+      ;;
+    4)
+      check_priority
+      ;;
+    5)
+      echo "退出程序"
+      exit 0
+      ;;
+    *)
+      echo "无效输入，请输入 1 至 5 的选项"
+      ;;
+  esac
 }
 
 # 主菜单循环

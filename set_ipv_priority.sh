@@ -75,9 +75,12 @@ check_priority() {
 
 # 处理用户选择
 handle_choice() {
+  # 清除输入中的空格或其他不可见字符
+  choice=$(echo "$1" | xargs)
+  
   # 检查输入的选择是否为有效的数字
-  if [[ "$1" =~ ^[1-5]$ ]]; then
-    case $1 in
+  if [[ "$choice" =~ ^[1-5]$ ]]; then
+    case $choice in
       1)
         set_ipv4_priority
         ;;

@@ -21,16 +21,33 @@ get_network_info() {
   # 自动检测网卡
   INTERFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
 
+  # 如果无法检测到网卡，提示错误
+  if [ -z "$INTERFACE" ]; then
+    echo "错误：未能自动检测到网卡接口，请检查网络配置。"
+    exit 1
+  fi
+
   # 自动检测 IPv4 网关
   IPv4_GATEWAY=$(ip -4 route show default | grep -oP '(?<=via )(\S+)')
+
+  # 如果无法检测到 IPv4 网关，提示错误
+  if [ -z "$IPv4_GATEWAY" ]; then
+    echo "错误：未能自动检测到 IPv4 网关，请检查网络配置。"
+    exit 1
+  fi
 
   # 自动检测 IPv6 网关
   IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )(\S+)')
 
-  if [ -z "$INTERFACE" ] || [ -z "$IPv4_GATEWAY" ] || [ -z "$IPv6_GATEWAY" ]; then
-    echo "错误：未能自动检测到网卡或网关，请检查网络配置。"
+  # 如果无法检测到 IPv6 网关，提示错误
+  if [ -z "$IPv6_GATEWAY" ]; then
+    echo "错误：未能自动检测到 IPv6 网关，请检查网络配置。"
     exit 1
   fi
+
+  echo "网卡接口：$INTERFACE"
+  echo "IPv4 网关：$IPv4_GATEWAY"
+  echo "IPv6 网关：$IPv6_GATEWAY"
 }
 
 # 设置 IPv4 优先

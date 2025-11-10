@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# 配置文件保存优先设置
 ROUTE_FILE="/etc/network/ipv_priority.conf"
 
-# 显示菜单选项
 show_menu() {
   echo "==============================="
   echo "    网络优先设置脚本"
@@ -16,153 +14,73 @@ show_menu() {
   echo "==============================="
 }
 
-# 获取网卡和网关
 get_network_info() {
-  # 自动检测网卡
-  INTERFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
-  
-  # 检查是否成功获取网卡接口
-  if [ -z "$INTERFACE" ]; then
-    echo "错误：未能自动检测到网卡接口，请检查网络配置。"
+  INTERFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -n1)
+  IPv4_GATEWAY=$(ip -4 route show default | grep -oP '(?<=via )\S+')
+  IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )\S+')
+
+  echo "检测：接口=$INTERFACE, IPv4网关=$IPv4_GATEWAY, IPv6网关=$IPv6_GATEWAY"
+
+  if [ -z "$INTERFACE" ] || [ -z "$IPv4_GATEWAY" ] || [ -z "$IPv6_GATEWAY" ]; then
+    echo "错误：未能自动检测到网卡或网关，请检查网络配置。"
     exit 1
   fi
-
-  # 自动检测 IPv4 网关
-  IPv4_GATEWAY=$(ip -4 route show default | grep -oP '(?<=via )(\S+)')
-  
-  # 检查是否成功获取 IPv4 网关
-  if [ -z "$IPv4_GATEWAY" ]; then
-    echo "错误：未能自动检测到 IPv4 网关，请检查网络配置。"
-    exit 1
-  fi
-
-  # 自动检测 IPv6 网关
-  IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )(\S+)')
-
-  # 检查是否成功获取 IPv6 网关
-  if [ -z "$IPv6_GATEWAY" ]; then
-    echo "错误：未能自动检测到 IPv6 网关，请检查网络配置。"
-    exit 1
-  fi
-
-  echo "检测到的网卡接口：$INTERFACE"
-  echo "IPv4 网关：$IPv4_GATEWAY"
-  echo "IPv6 网关：$IPv6_GATEWAY"
 }
 
-# 设置 IPv4 优先
 set_ipv4_priority() {
   echo "设置 IPv4 优先出站路由"
-  
-  # 获取网卡和网关信息
   get_network_info
-
-  # 删除现有的 IPv6 默认路由
-  ip -6 route del default
-  # 设置 IPv4 路由
-  ip route add default via $IPv4_GATEWAY dev $INTERFACE
-  # 保存设置到文件
-  echo "ipv4" > $ROUTE_FILE
-
-  # 保存永久设置到 sysctl
+  # 禁用 IPv6 临时
   sysctl -w net.ipv6.conf.all.disable_ipv6=1
-
-  # 更新 sysctl 配置文件以确保重启后仍然生效
-  echo "net.ipv6.conf.all.disable_ipv6=1" >> /etc/sysctl.conf
-  sysctl -p
-
-  echo "IPv4 优先路由设置完成"
+  # 配置 /etc/gai.conf 让系统优先使用 IPv4
+  sed -i 's/#precedence ::ffff:0:0\/96  100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
+  # 保存优先标记
+  echo "ipv4" > "$ROUTE_FILE"
+  echo "完成：IPv4 优先已设置"
 }
 
-# 设置 IPv6 优先
 set_ipv6_priority() {
   echo "设置 IPv6 优先出站路由"
-  
-  # 获取网卡和网关信息
   get_network_info
-
-  # 删除现有的 IPv4 默认路由
-  ip route del default
-  # 设置 IPv6 路由
-  ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
-  # 保存设置到文件
-  echo "ipv6" > $ROUTE_FILE
-
-  # 恢复 IPv6 设置
+  # 启用 IPv6
   sysctl -w net.ipv6.conf.all.disable_ipv6=0
-
-  # 更新 sysctl 配置文件以确保重启后仍然生效
-  echo "net.ipv6.conf.all.disable_ipv6=0" >> /etc/sysctl.conf
-  sysctl -p
-
-  echo "IPv6 优先路由设置完成"
+  # 还原 /etc/gai.conf 中 IPv4 优先的配置（注释掉）
+  sed -i 's/^precedence ::ffff:0:0\/96  100/#precedence ::ffff:0:0\/96  100/' /etc/gai.conf
+  echo "ipv6" > "$ROUTE_FILE"
+  echo "完成：IPv6 优先已设置"
 }
 
-# 恢复默认路由设置
 restore_default() {
   echo "恢复默认路由设置"
-  
-  # 获取网卡和网关信息
   get_network_info
-
-  # 恢复 IPv4 默认路由
-  ip route del default
-  ip route add default via $IPv4_GATEWAY dev $INTERFACE
-  # 恢复 IPv6 默认路由
-  ip -6 route del default
-  ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
-
-  # 恢复 sysctl 设置
+  # 启用 IPv6
   sysctl -w net.ipv6.conf.all.disable_ipv6=0
-
-  # 清除设置文件
-  rm -f $ROUTE_FILE
-
-  # 更新 sysctl 配置文件以确保重启后仍然生效
-  sed -i '/net.ipv6.conf.all.disable_ipv6/d' /etc/sysctl.conf
-  sysctl -p
-
-  echo "默认路由恢复完成"
+  # 清除 gai.conf 中的强制 IPv4 优先
+  sed -i 's/^precedence ::ffff:0:0\/96  100/#precedence ::ffff:0:0\/96  100/' /etc/gai.conf
+  rm -f "$ROUTE_FILE"
+  echo "完成：已恢复默认路由设置"
 }
 
-# 查询当前优先设置
 check_priority() {
-  if [ -f $ROUTE_FILE ]; then
-    current_priority=$(cat $ROUTE_FILE)
-    echo "当前优先设置：$current_priority"
+  if [ -f "$ROUTE_FILE" ]; then
+    echo "当前优先设置：$(cat $ROUTE_FILE)"
   else
-    echo "没有保存优先设置，使用默认路由"
+    echo "当前优先设置：默认（未设置）"
   fi
 }
 
-# 处理用户选择
-handle_choice() {
-  choice=$(echo "$1" | xargs)  # 清除输入中的空格或其他不可见字符
-  
+handle_choice(){
+  choice=$(echo "$1" | xargs)
   case $choice in
-    1)
-      set_ipv4_priority
-      ;;
-    2)
-      set_ipv6_priority
-      ;;
-    3)
-      restore_default
-      ;;
-    4)
-      check_priority
-      ;;
-    5)
-      echo "退出程序"
-      exit 0
-      ;;
-    *)
-      echo "无效输入，请输入 1 至 5 的选项"
-      ;;
+    1) set_ipv4_priority ;;
+    2) set_ipv6_priority ;;
+    3) restore_default ;;
+    4) check_priority ;;
+    5) echo "退出程序"; exit 0 ;;
+    *) echo "无效输入，请输入 1‑5 的选项" ;;
   esac
 }
 
-# 主菜单循环
 while true; do
   show_menu
   read -p "请输入选项 [1-5]：" choice

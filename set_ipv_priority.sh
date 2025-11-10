@@ -75,32 +75,37 @@ check_priority() {
 
 # 处理用户选择
 handle_choice() {
-  case $1 in
-    1)
-      set_ipv4_priority
-      ;;
-    2)
-      set_ipv6_priority
-      ;;
-    3)
-      restore_default
-      ;;
-    4)
-      check_priority
-      ;;
-    5)
-      echo "退出程序"
-      exit 0
-      ;;
-    *)
-      echo "无效选择，请重新选择"
-      ;;
-  esac
+  # 检查输入的选择是否为有效的数字
+  if [[ "$1" =~ ^[1-5]$ ]]; then
+    case $1 in
+      1)
+        set_ipv4_priority
+        ;;
+      2)
+        set_ipv6_priority
+        ;;
+      3)
+        restore_default
+        ;;
+      4)
+        check_priority
+        ;;
+      5)
+        echo "退出程序"
+        exit 0
+        ;;
+      *)
+        echo "无效选择，请重新选择"
+        ;;
+    esac
+  else
+    echo "无效输入，请输入 1 至 5 的选项"
+  fi
 }
 
 # 主菜单循环
 while true; do
   show_menu
   read -p "请输入选项 [1-5]：" choice
-  handle_choice $choice
+  handle_choice "$choice"
 done

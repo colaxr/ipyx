@@ -46,6 +46,8 @@ set_ipv4_priority() {
   ip route add default via $IPv4_GATEWAY dev $INTERFACE
   # 保存设置到文件
   echo "ipv4" > $ROUTE_FILE
+  # 保存永久设置到 sysctl
+  sysctl -w net.ipv6.conf.all.disable_ipv6=1
   echo "IPv4 优先路由设置完成"
 }
 
@@ -62,6 +64,8 @@ set_ipv6_priority() {
   ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
   # 保存设置到文件
   echo "ipv6" > $ROUTE_FILE
+  # 保存永久设置到 sysctl
+  sysctl -w net.ipv6.conf.all.disable_ipv6=0
   echo "IPv6 优先路由设置完成"
 }
 
@@ -78,6 +82,8 @@ restore_default() {
   # 恢复 IPv6 默认路由
   ip -6 route del default
   ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
+  # 恢复 sysctl 设置
+  sysctl -w net.ipv6.conf.all.disable_ipv6=0
   # 清除设置文件
   rm -f $ROUTE_FILE
   echo "默认路由恢复完成"

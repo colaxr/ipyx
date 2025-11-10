@@ -20,10 +20,8 @@ show_menu() {
 get_network_info() {
   # 自动检测网卡
   INTERFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
-
-  # 打印调试信息
-  echo "检测到的网卡接口：$INTERFACE"
-
+  
+  # 检查是否成功获取网卡接口
   if [ -z "$INTERFACE" ]; then
     echo "错误：未能自动检测到网卡接口，请检查网络配置。"
     exit 1
@@ -31,10 +29,8 @@ get_network_info() {
 
   # 自动检测 IPv4 网关
   IPv4_GATEWAY=$(ip -4 route show default | grep -oP '(?<=via )(\S+)')
-
-  # 打印调试信息
-  echo "检测到的 IPv4 网关：$IPv4_GATEWAY"
-
+  
+  # 检查是否成功获取 IPv4 网关
   if [ -z "$IPv4_GATEWAY" ]; then
     echo "错误：未能自动检测到 IPv4 网关，请检查网络配置。"
     exit 1
@@ -43,13 +39,15 @@ get_network_info() {
   # 自动检测 IPv6 网关
   IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )(\S+)')
 
-  # 打印调试信息
-  echo "检测到的 IPv6 网关：$IPv6_GATEWAY"
-
+  # 检查是否成功获取 IPv6 网关
   if [ -z "$IPv6_GATEWAY" ]; then
     echo "错误：未能自动检测到 IPv6 网关，请检查网络配置。"
     exit 1
   fi
+
+  echo "检测到的网卡接口：$INTERFACE"
+  echo "IPv4 网关：$IPv4_GATEWAY"
+  echo "IPv6 网关：$IPv6_GATEWAY"
 }
 
 # 设置 IPv4 优先
@@ -65,8 +63,14 @@ set_ipv4_priority() {
   ip route add default via $IPv4_GATEWAY dev $INTERFACE
   # 保存设置到文件
   echo "ipv4" > $ROUTE_FILE
+
   # 保存永久设置到 sysctl
   sysctl -w net.ipv6.conf.all.disable_ipv6=1
+
+  # 更新 sysctl 配置文件以确保重启后仍然生效
+  echo "net.ipv6.conf.all.disable_ipv6=1" >> /etc/sysctl.conf
+  sysctl -p
+
   echo "IPv4 优先路由设置完成"
 }
 
@@ -83,8 +87,14 @@ set_ipv6_priority() {
   ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
   # 保存设置到文件
   echo "ipv6" > $ROUTE_FILE
-  # 保存永久设置到 sysctl
+
+  # 恢复 IPv6 设置
   sysctl -w net.ipv6.conf.all.disable_ipv6=0
+
+  # 更新 sysctl 配置文件以确保重启后仍然生效
+  echo "net.ipv6.conf.all.disable_ipv6=0" >> /etc/sysctl.conf
+  sysctl -p
+
   echo "IPv6 优先路由设置完成"
 }
 
@@ -101,10 +111,17 @@ restore_default() {
   # 恢复 IPv6 默认路由
   ip -6 route del default
   ip -6 route add default via $IPv6_GATEWAY dev $INTERFACE
+
   # 恢复 sysctl 设置
   sysctl -w net.ipv6.conf.all.disable_ipv6=0
+
   # 清除设置文件
   rm -f $ROUTE_FILE
+
+  # 更新 sysctl 配置文件以确保重启后仍然生效
+  sed -i '/net.ipv6.conf.all.disable_ipv6/d' /etc/sysctl.conf
+  sysctl -p
+
   echo "默认路由恢复完成"
 }
 

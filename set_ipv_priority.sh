@@ -12,10 +12,17 @@ IPv6_GATEWAY=$(ip -6 route show default | grep -oP '(?<=via )(\S+)')
 # 配置文件保存优先设置
 ROUTE_FILE="/etc/network/ipv_priority.conf"
 
-# 显示脚本的帮助信息
-usage() {
-  echo "Usage: $0 {ipv4|ipv6|restore|status}"
-  exit 1
+# 显示菜单选项
+show_menu() {
+  echo "==============================="
+  echo "    网络优先设置脚本"
+  echo "==============================="
+  echo "1) 设置 IPv4 优先"
+  echo "2) 设置 IPv6 优先"
+  echo "3) 恢复默认路由设置"
+  echo "4) 查询当前路由优先设置"
+  echo "5) 退出"
+  echo "==============================="
 }
 
 # 设置 IPv4 优先
@@ -66,37 +73,34 @@ check_priority() {
   fi
 }
 
-# 开机时保持设置
-persist_settings() {
-  if [ -f $ROUTE_FILE ]; then
-    saved_priority=$(cat $ROUTE_FILE)
-    if [ "$saved_priority" == "ipv4" ]; then
+# 处理用户选择
+handle_choice() {
+  case $1 in
+    1)
       set_ipv4_priority
-    elif [ "$saved_priority" == "ipv6" ]; then
+      ;;
+    2)
       set_ipv6_priority
-    fi
-  fi
+      ;;
+    3)
+      restore_default
+      ;;
+    4)
+      check_priority
+      ;;
+    5)
+      echo "退出程序"
+      exit 0
+      ;;
+    *)
+      echo "无效选择，请重新选择"
+      ;;
+  esac
 }
 
-# 根据用户参数选择相应操作
-if [ $# -eq 0 ]; then
-  usage
-fi
-
-case "$1" in
-  ipv4)
-    set_ipv4_priority
-    ;;
-  ipv6)
-    set_ipv6_priority
-    ;;
-  restore)
-    restore_default
-    ;;
-  status)
-    check_priority
-    ;;
-  *)
-    usage
-    ;;
-esac
+# 主菜单循环
+while true; do
+  show_menu
+  read -p "请输入选项 [1-5]：" choice
+  handle_choice $choice
+done
